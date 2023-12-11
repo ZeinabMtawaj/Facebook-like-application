@@ -1,0 +1,95 @@
+alter table "EVENT_PARTICIPANT" drop constraint FK_EVENT_PARTICIPANT_EVENT1;
+alter table "EVENT_PARTICIPANT" add constraint FK_EVENT_PARTICIPANT_EVENT1 foreign key(EVENT_ID) references "EVENT"(ID) on delete cascade;
+alter table "REQUEST" drop constraint FK_REQUEST_USER1;
+alter table "REQUEST" drop constraint FK_REQUEST_USER;
+alter table "REQUEST" add constraint FK_REQUEST_USER foreign key(SENDER_ID) references "USER"(ID) on delete cascade;
+alter table "REQUEST" add constraint FK_REQUEST_USER1 foreign key(RECEIVER_ID) references "USER"(ID) on delete cascade;
+alter table "POST" drop constraint FK_POST_USER1;
+alter table "POST" add constraint FK_POST_USER1 foreign key(USER_ID) references "USER"(ID) on delete cascade;
+alter table "MESSAGE" drop constraint FK_MESSAGE_USER2;
+alter table "MESSAGE" add constraint FK_MESSAGE_USER2 foreign key(SENDER_ID) references "USER"(ID) on delete cascade;
+alter table "MESSAGE" drop constraint FK_MESSAGE_USER1;
+alter table "MESSAGE" add constraint FK_MESSAGE_USER1 foreign key(RECEIVER_ID) references "USER"(ID) on delete cascade;
+alter table "LIKE" drop constraint FK_LIKE_USER1;
+alter table "LIKE" add constraint FK_LIKE_USER1 foreign key(USER_ID) references "USER"(ID) on delete cascade;
+alter table "FRIENDSHIP" drop constraint FK_FRIENDSHIP_USER2;
+alter table "FRIENDSHIP" add constraint FK_FRIENDSHIP_USER2 foreign key(USER2_ID) references "USER"(ID) on delete cascade;
+alter table "FRIENDSHIP" drop constraint FK_FRIENDSHIP_USER1;
+alter table "FRIENDSHIP" add constraint FK_FRIENDSHIP_USER1 foreign key(USER1_ID) references "USER"(ID) on delete cascade;
+alter table "EVENT" drop constraint FK_EVENT_USER1;
+alter table "EVENT" add constraint FK_EVENT_USER1 foreign key(USER_ID) references "USER"(ID) on delete cascade;
+alter table "EVENT_PARTICIPANT" drop constraint FK_EVENT_PARTICIPANT_USER1;
+alter table "EVENT_PARTICIPANT" add constraint FK_EVENT_PARTICIPANT_USER1 foreign key(USER_ID) references "USER"(ID) on delete cascade;
+alter table "COMMENT" drop constraint FK_COMMENT_USER1;
+alter table "COMMENT" add constraint FK_COMMENT_USER1 foreign key(USER_ID) references "USER"(ID) on delete cascade;
+alter table "LIKE" drop constraint FK_LIKE_POST1;
+alter table "LIKE" add constraint FK_LIKE_POST1 foreign key(POST_ID) references "POST"(ID) on delete cascade;
+alter table "COMMENT" drop constraint FK_COMMENT_POST1;
+alter table "COMMENT" add constraint FK_COMMENT_POST1 foreign key(POST_ID) references "POST"(ID) on delete cascade;
+
+--------------------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE insert_remember_message AS
+cursor events is select ID, USER_ID from "EVENT"
+where (SYSDATE - TO_DATE(SUBSTR("EVENT".DATETIME, 1, 10),'YYYY-MM-DD')) <= 1
+and  SYSDATE - TO_DATE(SUBSTR("EVENT".DATETIME, 1, 10),'YYYY-MM-DD')>0 ;
+cursor pr is select * from "EVENT_PARTICIPANT";
+--pr array;
+BEGIN
+    for e in events
+    loop
+        for p in pr
+        loop
+            if (p.EVENT_ID = e.ID) then
+                INSERT INTO "MESSAGE" (CONTENT, DATETIME, STATUS, RECEIVER_ID, SENDER_ID )
+                values ('remember event',to_char(systimestamp, 'YYYY-MM-DD HH24:MI:ss'),0,p.USER_ID,e.USER_ID);
+            end if;
+        end loop;
+    end loop;
+
+commit;
+END;
+/
+
+BEGIN 
+DBMS_SCHEDULER.CREATE_PROGRAM
+(
+program_name => 'PROG_insert_remember_message', 
+program_action => 'insert_remember_message', 
+program_type => 'STORED_PROCEDURE'); 
+END;
+/
+
+BEGIN 
+dbms_scheduler.enable('PROG_insert_remember_message');
+END;
+/
+BEGIN 
+DBMS_SCHEDULER.CREATE_SCHEDULE ( 
+schedule_name => 'remember_event', 
+start_date => SYSTIMESTAMP, 
+repeat_interval => 'FREQ=DAILY;BYHOUR=12', 
+end_date => null, 
+comments => 'remember me'
+); 
+END; 
+/
+
+BEGIN 
+DBMS_SCHEDULER.CREATE_JOB ( 
+job_name => 'event_job', 
+program_name => 'PROG_insert_remember_message', 
+schedule_name => 'remember_event'); 
+END; 
+/
+
+BEGIN 
+dbms_scheduler.enable('event_job');
+END;
+/
+
+
+
+
+
+
